@@ -1363,7 +1363,7 @@ void MainWindow::onStartRecordButtonClicked() {
         args.insert(args.end(), { "-s", area });
 
     fprintf(stderr, "info: running command:");
-    for (const std::string a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
+    for (const std::string &a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
     fprintf(stderr, "\n");
 
     if (m_hideWhenRecordingAction->isChecked()) {
@@ -1616,7 +1616,6 @@ void MainWindow::onStartReplayButtonClicked() {
         args.push_back("-fm"); args.push_back(framerateModeStr);
     }
 
-    // don't scope on keys so mergeAudioTracks is still intact in memory
     std::string mergeAudioTracks;
     std::vector<std::string> audioTracks;
     bool invertAppAudio = m_invertAppAudioCheck->isChecked();
@@ -1664,7 +1663,7 @@ void MainWindow::onStartReplayButtonClicked() {
         args.insert(args.end(), { "-s", area });
 
     fprintf(stderr, "info: running command:");
-    for (const std::string a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
+    for (const std::string &a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
     fprintf(stderr, "\n");
 
     if (m_hideWhenRecordingAction->isChecked()) {
@@ -1986,7 +1985,7 @@ void MainWindow::onStartStreamButtonClicked() {
         args.insert(args.end(), { "-s", area });
 
     fprintf(stderr, "info: running command:");
-    for (const std::string a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
+    for (const std::string &a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
     fprintf(stderr, "\n");
 
     if (m_hideWhenRecordingAction->isChecked()) {
