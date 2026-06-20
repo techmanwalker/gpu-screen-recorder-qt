@@ -769,7 +769,11 @@ QWidget* MainWindow::createCommonSettingsPage() {
     m_videoHeightSpin->setRange(5, 10000);
     m_videoHeightSpin->setValue(1080);
     videoResLayout->addWidget(m_videoHeightSpin);
-    captureLayout->addLayout(videoResLayout);
+    QWidget *videoResWidget = new QWidget;
+    videoResWidget->setLayout(videoResLayout);
+    videoResWidget->setVisible(false);
+
+    captureLayout->addWidget(videoResWidget);
 
     m_restorePortalCheck = new QCheckBox("Restore portal session");
     m_restorePortalCheck->setChecked(true);
@@ -996,11 +1000,19 @@ QWidget* MainWindow::createCommonSettingsPage() {
         m_audioItemsLayout->addWidget(createAppAudioCustomRow(""));
     });
 
-    connect(m_changeResolutionCheck, &QCheckBox::toggled, this, [this](bool checked) {
-        bool isFocused = m_recordAreaCombo->currentData().toString() == "focused";
-        m_videoWidthSpin->parentWidget()->setVisible(checked && !isFocused);
-        m_videoHeightSpin->parentWidget()->setVisible(checked && !isFocused);
+    auto updateVideoResVisibility = [this, videoResWidget]() {
+        const bool checked = m_changeResolutionCheck->isChecked();
+        const bool isFocused = (m_recordAreaCombo->currentData().toString() == "focused");
+        videoResWidget->setVisible(checked && !isFocused);
+    };
+
+    connect(m_changeResolutionCheck, &QCheckBox::toggled, this, [updateVideoResVisibility](bool) {
+        updateVideoResVisibility();
     });
+    connect(m_recordAreaCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
++        this, [updateVideoResVisibility](int) {
+            updateVideoResVisibility();
+        });
 
     connect(m_streamBtn, &QPushButton::clicked, this, &MainWindow::onStartStreamingClick);
     connect(m_recordBtn, &QPushButton::clicked, this, &MainWindow::onStartRecordingClick);
