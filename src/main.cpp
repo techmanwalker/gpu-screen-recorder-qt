@@ -196,7 +196,7 @@ private:
     void onSaveReplayClicked();
     void updateSystrayMenu(SystrayPage page);
 
-    void startGpuScreenRecorder(std::vector<const char*> args);
+    void startGpuScreenRecorder(const std::vector<std::string> &args);
 
     void showNotification(const QString &title, const QString &body, bool urgent = false);
     void withdrawNotification();
@@ -1295,25 +1295,25 @@ void MainWindow::onStartRecordButtonClicked() {
     char area[64];
     snprintf(area, sizeof(area), "%dx%d", recordWidth, recordHeight);
 
-    std::vector<const char*> args = {
-        "gpu-screen-recorder", "-w", windowStr.c_str(), "-c", containerStr.c_str(), "-k", videoCodecInput.c_str(),
-        "-ac", audioCodecStr.c_str(), "-f", fpsStr.c_str(), "-cursor", recordCursor ? "yes" : "no",
-        "-restore-portal-session", restorePortal ? "yes" : "no", "-cr", colorRangeStr.c_str(),
-        "-encoder", encoder, "-o", m_recordFileCurrentFilename.c_str()
+    std::vector<std::string> args = {
+        "gpu-screen-recorder", "-w", windowStr, "-c", containerStr, "-k", videoCodecInput,
+        "-ac", audioCodecStr, "-f", fpsStr, "-cursor", recordCursor ? "yes" : "no",
+        "-restore-portal-session", restorePortal ? "yes" : "no", "-cr", colorRangeStr,
+        "-encoder", encoder, "-o", m_recordFileCurrentFilename
     };
 
     if (qualityStr == "custom") {
         args.push_back("-bm"); args.push_back("cbr");
-        args.push_back("-q"); args.push_back(videoBitrateStr.c_str());
+        args.push_back("-q"); args.push_back(videoBitrateStr);
     } else {
-        args.push_back("-q"); args.push_back(qualityStr.c_str());
+        args.push_back("-q"); args.push_back(qualityStr);
     }
 
     if (m_overclockCheck->isChecked())
         args.insert(args.end(), { "-oc", "yes" });
 
     if (framerateModeStr != "auto") {
-        args.push_back("-fm"); args.push_back(framerateModeStr.c_str());
+        args.push_back("-fm"); args.push_back(framerateModeStr);
     }
 
     std::string mergeAudioTracks;
@@ -1351,21 +1351,19 @@ void MainWindow::onStartRecordButtonClicked() {
                 if (j > 0) merged += '|';
                 merged += audioTracks[j];
             }
-            args.push_back("-a"); args.push_back(merged.c_str());
+            args.push_back("-a"); args.push_back(merged);
         }
     } else {
         for (const auto &track : audioTracks) {
-            args.push_back("-a"); args.push_back(track.c_str());
+            args.push_back("-a"); args.push_back(track);
         }
     }
 
     if (changeVideoResolution)
         args.insert(args.end(), { "-s", area });
 
-    args.push_back(nullptr);
-
     fprintf(stderr, "info: running command:");
-    for (const char *a : args) { if (a) fprintf(stderr, " %s", a); }
+    for (const std::string a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
     fprintf(stderr, "\n");
 
     if (m_hideWhenRecordingAction->isChecked()) {
@@ -1597,79 +1595,76 @@ void MainWindow::onStartReplayButtonClicked() {
     char area[64];
     snprintf(area, sizeof(area), "%dx%d", recordWidth, recordHeight);
 
-    std::vector<const char*> args = {
-        "gpu-screen-recorder", "-w", windowStr.c_str(), "-c", containerStr.c_str(), "-k", videoCodecInput.c_str(),
-        "-ac", audioCodecStr.c_str(), "-f", fpsStr.c_str(), "-cursor", recordCursor ? "yes" : "no",
-        "-restore-portal-session", restorePortal ? "yes" : "no", "-cr", colorRangeStr.c_str(),
-        "-r", replayTimeStr.c_str(), "-encoder", encoder, "-o", dir.toStdString().c_str()
+    std::vector<std::string> args = {
+        "gpu-screen-recorder", "-w", windowStr, "-c", containerStr, "-k", videoCodecInput,
+        "-ac", audioCodecStr, "-f", fpsStr, "-cursor", recordCursor ? "yes" : "no",
+        "-restore-portal-session", restorePortal ? "yes" : "no", "-cr", colorRangeStr,
+        "-r", replayTimeStr, "-encoder", encoder, "-o", dir.toStdString()
     };
 
     if (qualityStr == "custom") {
         args.push_back("-bm"); args.push_back("cbr");
-        args.push_back("-q"); args.push_back(videoBitrateStr.c_str());
+        args.push_back("-q"); args.push_back(videoBitrateStr);
     } else {
-        args.push_back("-q"); args.push_back(qualityStr.c_str());
+        args.push_back("-q"); args.push_back(qualityStr);
     }
 
     if (m_overclockCheck->isChecked())
         args.insert(args.end(), { "-oc", "yes" });
 
     if (framerateModeStr != "auto") {
-        args.push_back("-fm"); args.push_back(framerateModeStr.c_str());
+        args.push_back("-fm"); args.push_back(framerateModeStr);
     }
 
-    {
-        std::string mergeAudioTracks;
-        std::vector<std::string> audioTracks;
-        bool invertAppAudio = m_invertAppAudioCheck->isChecked();
-        int numAppAudio = 0;
+    // don't scope on keys so mergeAudioTracks is still intact in memory
+    std::string mergeAudioTracks;
+    std::vector<std::string> audioTracks;
+    bool invertAppAudio = m_invertAppAudioCheck->isChecked();
+    int numAppAudio = 0;
 
-        for (int i = 0; i < m_audioItemsLayout->count(); ++i) {
-            QWidget *row = m_audioItemsLayout->itemAt(i)->widget();
-            if (!row) continue;
-            QString type = row->property("audio-track-type").toString();
-            QComboBox *combo = row->findChild<QComboBox*>();
-            QLineEdit *entry = row->findChild<QLineEdit*>();
+    for (int i = 0; i < m_audioItemsLayout->count(); ++i) {
+        QWidget *row = m_audioItemsLayout->itemAt(i)->widget();
+        if (!row) continue;
+        QString type = row->property("audio-track-type").toString();
+        QComboBox *combo = row->findChild<QComboBox*>();
+        QLineEdit *entry = row->findChild<QLineEdit*>();
 
-            if (type == "device" && combo) {
-                audioTracks.push_back("device:" + combo->currentData().toString().toStdString());
-            } else if (type == "app" && combo) {
-                if (!m_gsrInfo.system_info.supports_app_audio) continue;
-                audioTracks.push_back((invertAppAudio ? "app-inverse:" : "app:") + combo->currentData().toString().toStdString());
-                ++numAppAudio;
-            } else if (type == "app-custom" && entry) {
-                if (!m_gsrInfo.system_info.supports_app_audio) continue;
-                audioTracks.push_back((invertAppAudio ? "app-inverse:" : "app:") + entry->text().toStdString());
-                ++numAppAudio;
-            }
+        if (type == "device" && combo) {
+            audioTracks.push_back("device:" + combo->currentData().toString().toStdString());
+        } else if (type == "app" && combo) {
+            if (!m_gsrInfo.system_info.supports_app_audio) continue;
+            audioTracks.push_back((invertAppAudio ? "app-inverse:" : "app:") + combo->currentData().toString().toStdString());
+            ++numAppAudio;
+        } else if (type == "app-custom" && entry) {
+            if (!m_gsrInfo.system_info.supports_app_audio) continue;
+            audioTracks.push_back((invertAppAudio ? "app-inverse:" : "app:") + entry->text().toStdString());
+            ++numAppAudio;
         }
+    }
 
-        if (numAppAudio == 0 && invertAppAudio)
-            audioTracks.push_back("app-inverse:");
+    if (numAppAudio == 0 && invertAppAudio)
+        audioTracks.push_back("app-inverse:");
 
-        if (m_splitAudioCheck && !m_splitAudioCheck->isChecked()) {
-            if (!audioTracks.empty()) {
-                std::string merged;
-                for (size_t j = 0; j < audioTracks.size(); ++j) {
-                    if (j > 0) merged += '|';
-                    merged += audioTracks[j];
-                }
-                args.push_back("-a"); args.push_back(merged.c_str());
+    if (m_splitAudioCheck && !m_splitAudioCheck->isChecked()) {
+        if (!audioTracks.empty()) {
+            std::string merged;
+            for (size_t j = 0; j < audioTracks.size(); ++j) {
+                if (j > 0) merged += '|';
+                merged += audioTracks[j];
             }
-        } else {
-            for (const auto &track : audioTracks) {
-                args.push_back("-a"); args.push_back(track.c_str());
-            }
+            args.push_back("-a"); args.push_back(merged);
+        }
+    } else {
+        for (const auto &track : audioTracks) {
+            args.push_back("-a"); args.push_back(track);
         }
     }
 
     if (changeVideoResolution)
         args.insert(args.end(), { "-s", area });
 
-    args.push_back(nullptr);
-
     fprintf(stderr, "info: running command:");
-    for (const char *a : args) { if (a) fprintf(stderr, " %s", a); }
+    for (const std::string a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
     fprintf(stderr, "\n");
 
     if (m_hideWhenRecordingAction->isChecked()) {
@@ -1921,25 +1916,25 @@ void MainWindow::onStartStreamButtonClicked() {
     char area[64];
     snprintf(area, sizeof(area), "%dx%d", recordWidth, recordHeight);
 
-    std::vector<const char*> args = {
-        "gpu-screen-recorder", "-w", windowStr.c_str(), "-c", containerStr.c_str(), "-k", videoCodecInput.c_str(),
-        "-ac", audioCodecStr.c_str(), "-f", fpsStr.c_str(), "-cursor", recordCursor ? "yes" : "no",
-        "-restore-portal-session", restorePortal ? "yes" : "no", "-cr", colorRangeStr.c_str(),
-        "-encoder", encoder, "-o", streamUrl.c_str()
+    std::vector<std::string> args = {
+        "gpu-screen-recorder", "-w", windowStr, "-c", containerStr, "-k", videoCodecInput,
+        "-ac", audioCodecStr, "-f", fpsStr, "-cursor", recordCursor ? "yes" : "no",
+        "-restore-portal-session", restorePortal ? "yes" : "no", "-cr", colorRangeStr,
+        "-encoder", encoder, "-o", streamUrl
     };
 
     if (qualityStr == "custom") {
         args.push_back("-bm"); args.push_back("cbr");
-        args.push_back("-q"); args.push_back(videoBitrateStr.c_str());
+        args.push_back("-q"); args.push_back(videoBitrateStr);
     } else {
-        args.push_back("-q"); args.push_back(qualityStr.c_str());
+        args.push_back("-q"); args.push_back(qualityStr);
     }
 
     if (m_overclockCheck->isChecked())
         args.insert(args.end(), { "-oc", "yes" });
 
     if (framerateModeStr != "auto") {
-        args.push_back("-fm"); args.push_back(framerateModeStr.c_str());
+        args.push_back("-fm"); args.push_back(framerateModeStr);
     }
 
     {
@@ -1973,16 +1968,16 @@ void MainWindow::onStartStreamButtonClicked() {
 
         if (m_splitAudioCheck && !m_splitAudioCheck->isChecked()) {
             if (!audioTracks.empty()) {
-                std::string merged;
+                mergeAudioTracks.clear(); // Utilizamos la variable del alcance superior
                 for (size_t j = 0; j < audioTracks.size(); ++j) {
-                    if (j > 0) merged += '|';
-                    merged += audioTracks[j];
+                    if (j > 0) mergeAudioTracks += '|';
+                    mergeAudioTracks += audioTracks[j];
                 }
-                args.push_back("-a"); args.push_back(merged.c_str());
+                args.push_back("-a"); args.push_back(mergeAudioTracks);
             }
         } else {
             for (const auto &track : audioTracks) {
-                args.push_back("-a"); args.push_back(track.c_str());
+                args.push_back("-a"); args.push_back(track);
             }
         }
     }
@@ -1990,10 +1985,8 @@ void MainWindow::onStartStreamButtonClicked() {
     if (changeVideoResolution)
         args.insert(args.end(), { "-s", area });
 
-    args.push_back(nullptr);
-
     fprintf(stderr, "info: running command:");
-    for (const char *a : args) { if (a) fprintf(stderr, " %s", a); }
+    for (const std::string a : args) { if (!a.empty()) fprintf(stderr, " %s", a.c_str()); }
     fprintf(stderr, "\n");
 
     if (m_hideWhenRecordingAction->isChecked()) {
@@ -2122,7 +2115,14 @@ void MainWindow::onBackClick() {
     updateSystrayMenu(SystrayPage::FRONT);
 }
 
-void MainWindow::startGpuScreenRecorder(std::vector<const char*> args) {
+void MainWindow::startGpuScreenRecorder(const std::vector<std::string> &args) {
+    std::vector<const char*> args_c;
+    args_c.reserve(args.size() + 1);
+    for (const auto& arg : args) {
+        args_c.push_back(arg.c_str());
+    }
+    args_c.push_back(nullptr);
+
     pid_t parentPid = getpid();
     pid_t pid = fork();
     if (pid == -1) {
@@ -2136,7 +2136,9 @@ void MainWindow::startGpuScreenRecorder(std::vector<const char*> args) {
         }
         if (getppid() != parentPid)
             _exit(3);
-        execvp(args[0], (char* const*)args.data());
+        // Now execvp uses the local 'args' vector for this child process
+        // that points to the copied memory of 'args' the parent passed.
+        execvp(args_c[0], (char* const*)args_c.data());
         perror("execvp");
         _exit(127);
     }
