@@ -1000,10 +1000,12 @@ QWidget* MainWindow::createCommonSettingsPage() {
         m_audioItemsLayout->addWidget(createAppAudioCustomRow(""));
     });
 
-    auto updateVideoResVisibility = [this, videoResWidget]() {
+    auto updateVideoResVisibility = [this, videoResWidget, scrollContent]() {
         const bool checked = m_changeResolutionCheck->isChecked();
         const bool isFocused = (m_recordAreaCombo->currentData().toString() == "focused");
         videoResWidget->setVisible(checked && !isFocused);
+
+        qApp->sendPostedEvents(nullptr, QEvent::LayoutRequest);
     };
 
     connect(m_changeResolutionCheck, &QCheckBox::toggled, this, [updateVideoResVisibility](bool) {
